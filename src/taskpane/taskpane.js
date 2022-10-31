@@ -13,6 +13,7 @@ Office.onReady((info) => {
 
     // Assign event handlers and other initialization logic.
     document.getElementById("create-table").onclick = createTable;
+    document.getElementById("create-tableCustom").onclick = createCustomTable;
     document.getElementById("filter-table").onclick = filterTable;
     document.getElementById("open-dialog").onclick = openDialog;
     document.getElementById("sort-table").onclick = sortTable;
@@ -20,7 +21,6 @@ Office.onReady((info) => {
     document.getElementById("freeze-header").onclick = freezeHeader;
     document.getElementById("sideload-msg").style.display = "none";
     document.getElementById("app-body").style.display = "flex";
-    
   }
 });
 
@@ -56,14 +56,81 @@ async function createTable() {
     }
   });
 }
+async function createCustomTable() {
+  await Excel.run(async (context) => {
+    //RESETEA LA TABLA
+    context.workbook.worksheets.getItemOrNullObject("CPPO").delete();
+    const sheet = context.workbook.worksheets.add("CPPO");
+
+    sheet.getRange("A1").values = "Volume in Month of contracted sale/Volume in Monat Abschluss.";
+    sheet.getRange("A2").values = "Sales Contracts Development CPPO.";
+    sheet.getRange("A3:C3").merge();
+
+    //encabezado
+    CrearEncabezado(sheet);
+    sheet.getRange("P1").values = [[new Date().toLocaleDateString("en-US")]];
+    //Titulo
+    let x = 4;
+    let anio = 2014;
+    for (let index = 0; index < 9; index++) {
+      CrearReporteLinea(sheet, anio, x);
+      x += 4;
+      anio++;
+    }
+
+    sheet.activate();
+    await context.sync();
+  }).catch(function (error) {
+    console.log("Error: " + error);
+    // eslint-disable-next-line no-undef
+    if (error instanceof OfficeExtension.Error) {
+      console.log("Debug info: " + JSON.stringify(error.debugInfo));
+    }
+  });
+}
+
+function CrearReporteLinea(sheet, anio, x) {
+  const yearTitle = sheet.getRange(`A${x}:A${x + 3}`);
+  yearTitle.merge();
+  yearTitle.values = anio;
+  //valores
+  const Revenue = sheet.getRange(`B${x}`);
+  Revenue.values = "Rev";
+  const Vol = sheet.getRange(`B${x + 2}`);
+  Vol.values = "Vol";
+  // "c4"
+  const Dolar = sheet.getRange(`C${x}`);
+  Dolar.values = "$";
+  const promedio = sheet.getRange(`C${x + 1}`);
+  promedio.values = "$/MT";
+  const Dollar2 = sheet.getRange(`C${x + 2}`);
+  Dollar2.values = "$";
+  // P4=SUM(D4:O4)
+  // =SUM(D5:O5)
+  // SUM(D6:O6)
+  Sumar(sheet, `=SUM(D${x}:O${x})`, `P${x}`);
+  Sumar(sheet, `=SUM(D${x + 1}:O${x + 1})`, `P${x + 1}`);
+  Sumar(sheet, `=SUM(D${x + 2}:O${x + 2})`, `P${x + 2}`);
+}
+
+function CrearEncabezado(sheet) {
+  const data = [["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec", "Total"]];
+  sheet.getRange("D3:p3").values = data;
+}
+
+function Sumar(sheet, rango, celda) {
+  const sumRangeP6 = sheet.getRange(celda);
+  sumRangeP6.formulas = [[rango]];
+  sumRangeP6.format.fill.color = "LightBlue";
+  sumRangeP6.format.font.bold = true;
+}
+
 async function filterTable() {
   await Excel.run(async (context) => {
     // TODO1: Queue commands to filter out all expense categories except
     const currentWorksheet = context.workbook.worksheets.getActiveWorksheet();
     // currentWorksheet.load("tables");
-
     const expensesTable = currentWorksheet.tables.getItem("Resumen");
-    console.log(expensesTable);
     expensesTable.load("filter");
     const categoryFilter = expensesTable.columns.getItem("Category").filter;
     categoryFilter.applyValuesFilter(["Education", "Groceries"]);
@@ -87,7 +154,6 @@ async function sortTable() {
         ascending: false,
       },
     ];
-
     expensesTable.sort.apply(sortFields);
     await context.sync();
   }).catch(function (error) {
@@ -144,11 +210,11 @@ function openDialog() {
     { height: 45, width: 55 },
 
     // TODO2: Add callback parameter.
-  function (result) {
+    function (result) {
       dialog = result.value;
       dialog.addEventHandler(Office.EventType.DialogMessageReceived, processMessage);
-  }
-);
+    }
+  );
 }
 function processMessage(arg) {
   document.getElementById("user-name").innerHTML = arg.message;
